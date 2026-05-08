@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mini Interpreter</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    header {
+      background: #181825;
+      padding: 20px 30px;
+      text-align: center;
+      border-bottom: 2px solid #313244;
+    }
+    header h1 {
+      font-size: 2rem;
+      color: #89b4fa;
+      margin-bottom: 0;
+    }
+
+    /* Pipeline Steps */
+    .pipeline {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0;
+      padding: 16px 20px;
+      background: #181825;
+      flex-wrap: wrap;
+    }
+    .step {
+      background: #313244;
+      color: #cdd6f4;
+      padding: 7px 18px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .arrow {
+      color: #45475a;
+      font-size: 1.3rem;
+      padding: 0 8px;
+    }
+
+    /* Main Layout */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 20px 30px;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Panels */
+    .panel {
+      background: #181825;
+      border-radius: 12px;
+      border: 1px solid #313244;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      background: #313244;
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .panel-header h2 {
+      font-size: 1rem;
+      color: #89b4fa;
+      font-weight: 700;
+    }
+    .panel-body {
+      padding: 16px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Samples */
+    .samples {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .sample-btn {
+      background: #313244;
+      color: #cdd6f4;
+      border: 1px solid #45475a;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .sample-btn:hover { background: #45475a; }
+
+    /* Code Editor */
+    textarea {
+      flex: 1;
+      width: 100%;
+      min-height: 140px;
+      background: #313244;
+      color: #cdd6f4;
+      border: 1px solid #45475a;
+      border-radius: 8px;
+      padding: 14px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 14px;
+      resize: vertical;
+      line-height: 1.6;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: #89b4fa; }
+
+    /* placeholder color */
+    textarea::placeholder {
+      color: #6c7086;
+    }
+
+    /* Buttons */
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    button:hover  { opacity: 0.88; }
+    button:active { transform: scale(0.97); }
+    .btn-run   { background: #a6e3a1; color: #1e1e2e; }
+    .btn-clear { background: #f38ba8; color: #1e1e2e; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .tab {
+      padding: 6px 16px;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: #313244;
+      color: #6c7086;
+      border: 1px solid #45475a;
+      border-bottom: none;
+      transition: color 0.2s, background 0.2s;
+    }
+    .tab.active {
+      background: #1e1e2e;
+      color: #89b4fa;
+      border-color: #89b4fa;
+    }
+
+    /* Output Box */
+    .output-box {
+      flex: 1;
+      background: #313244;
+      border: 1px solid #45475a;
+      border-radius: 0 8px 8px 8px;
+      padding: 16px;
+      font-family: 'Consolas', monospace;
+      font-size: 13px;
+      min-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      line-height: 1.7;
+    }
+
+    /* Output Coloring */
+    .tok-NUMBER   { color: #fab387; }
+    .tok-OPERATOR { color: #f5c2e7; }
+    .tok-IF,
+    .tok-ELSE     { color: #89b4fa; font-weight: bold; }
+    .tok-OTHER    { color: #a6e3a1; }
+
+    .ir-PUSH  { color: #fab387; }
+    .ir-LOAD  { color: #89dceb; }
+    .ir-STORE { color: #89dceb; }
+    .ir-OP    { color: #cba6f7; }
+    .ir-CTRL  { color: #f38ba8; font-weight: bold; }
+    .ir-PRINT { color: #a6e3a1; }
+
+    .ast-node { color: #89b4fa; }
+    .ast-num  { color: #fab387; }
+    .ast-op   { color: #cba6f7; }
+
+    .result-value { color: #a6e3a1; font-weight: bold; font-size: 1.1em; }
+    .result-label { color: #6c7086; }
+    .error-text   { color: #f38ba8; }
+
+    .line-num {
+      color: #45475a;
+      display: inline-block;
+      width: 28px;
+      user-select: none;
+    }
+
+    /* How It Works */
+    .info-section {
+      grid-column: 1 / -1;
+      background: #181825;
+      border: 1px solid #313244;
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+    .info-section h2 {
+      color: #89b4fa;
+      margin-bottom: 16px;
+      font-size: 1.1rem;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .info-card {
+      background: #313244;
+      border-radius: 10px;
+      padding: 16px;
+      border-left: 4px solid;
+    }
+    .info-card:nth-child(1) { border-color: #89b4fa; }
+    .info-card:nth-child(2) { border-color: #a6e3a1; }
+    .info-card:nth-child(3) { border-color: #fab387; }
+    .info-card:nth-child(4) { border-color: #cba6f7; }
+    .info-card h3 { font-size: 0.95rem; margin-bottom: 8px; }
+    .info-card p  { font-size: 0.82rem; color: #a6adc8; line-height: 1.5; }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      main { grid-template-columns: 1fr; padding: 10px; }
+      header h1 { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <h1>Mini Interpreter</h1>
+</header>
+
+<!-- Pipeline -->
+<div class="pipeline">
+  <span class="step">Source Code</span>
+  <span class="arrow">-></span>
+  <span class="step">Tokenizer</span>
+  <span class="arrow">-></span>
+  <span class="step">Parser (AST)</span>
+  <span class="arrow">-></span>
+  <span class="step">IR Generator</span>
+  <span class="arrow">-></span>
+  <span class="step">Executor</span>
+</div>
+
+<!-- Main -->
+<main>
+
+  <!-- Input Panel -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Source Code Editor</h2>
+    </div>
+    <div class="panel-body">
+      <p style="font-size:0.82rem;color:#6c7086;margin-bottom:10px;">
+        Try a sample or write your own:
+      </p>
+      <div class="samples" id="samples"></div>
+      <textarea
+        id="code-input"
+        spellcheck="false"
+        placeholder="Enter your code here..."></textarea>
+      <div class="btn-row">
+        <button class="btn-run"   onclick="runInterpreter()">Run Code</button>
+        <button class="btn-clear" onclick="clearAll()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Output Panel -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Interpreter Output</h2>
+    </div>
+    <div class="panel-body">
+      <div class="tabs">
+        <div class="tab active" onclick="showTab('tokens')">Tokens</div>
+        <div class="tab"        onclick="showTab('ast')">AST</div>
+        <div class="tab"        onclick="showTab('ir')">IR</div>
+        <div class="tab"        onclick="showTab('result')">Result</div>
+      </div>
+      <div class="output-box" id="output-tokens"></div>
+      <div class="output-box" id="output-ast"    style="display:none"></div>
+      <div class="output-box" id="output-ir"     style="display:none"></div>
+      <div class="output-box" id="output-result" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- How It Works -->
+  <div class="info-section">
+    <h2>How It Works</h2>
+    <div class="info-grid">
+      <div class="info-card">
+        <h3>Tokenizer (Lexer)</h3>
+        <p>
+          Scans source code character by character using
+          regular expressions. Converts raw text into a
+          structured list of tokens: NUMBER, OPERATOR,
+          IF, ELSE, IDENTIFIER, etc.
+        </p>
+      </div>
+      <div class="info-card">
+        <h3>Parser</h3>
+        <p>
+          Uses Precedence Climbing to parse tokens into
+          an Abstract Syntax Tree (AST). Handles arithmetic,
+          comparisons, if-else, assignments, and print
+          statements.
+        </p>
+      </div>
+      <div class="info-card">
+        <h3>IR Generator</h3>
+        <p>
+          Walks the AST and emits stack-based intermediate
+          instructions: PUSH, LOAD, STORE, ADD, SUB, MUL,
+          DIV, GT, LT, EQ, IF_FALSE, JUMP, PRINT, NEG.
+        </p>
+      </div>
+      <div class="info-card">
+        <h3>Executor</h3>
+        <p>
+          Simulates a virtual stack machine. Maintains an
+          operand stack, a symbol table for variables, and
+          an instruction pointer for control flow
+          (if-else, jumps).
+        </p>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+"use strict";
+
+// Sample Programs
+const SAMPLES = {
+  "Arithmetic"  : "3 + 5 * 2",
+  "If-Else"     : "if 10 > 5 : 100 else 200",
+  "Nested Math" : "(3 + 4) * (2 - 1)",
+  "Comparison"  : "10 == 10",
+  "Print"       : "print 3 + 4",
+  "Negative"    : "-5 + 3",
+};
+
+// Populate sample buttons
+const samplesDiv = document.getElementById('samples');
+for (const [name, code] of Object.entries(SAMPLES)) {
+  const btn = document.createElement('button');
+  btn.textContent = name;
+  btn.className   = 'sample-btn';
+  btn.onclick     = () => {
+    document.getElementById('code-input').value = code;
+  };
+  samplesDiv.appendChild(btn);
+}
+
+// Tab switching
+let currentTab = 'tokens';
+function showTab(name) {
+  ['tokens','ast','ir','result'].forEach(t => {
+    document.getElementById(`output-${t}`).style.display =
+      t === name ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle(
+      'active',
+      ['tokens','ast','ir','result'][i] === name
+    );
+  });
+  currentTab = name;
+}
+
+// ── TOKENIZER ──────────────────────────────────────────────────────────
+function tokenize(code) {
+  const patterns = [
+    ['NUMBER',     /^\d+(\.\d*)?/],
+    ['EQ_OP',      /^==/],
+    ['NEQ',        /^!=/],
+    ['LEQ',        /^<=/],
+    ['GEQ',        /^>=/],
+    ['OPERATOR',   /^[+\-*/<>=]/],
+    ['LPAREN',     /^\(/],
+    ['RPAREN',     /^\)/],
+    ['COLON',      /^:/],
+    ['IF',         /^\bif\b/],
+    ['ELSE',       /^\belse\b/],
+    ['PRINT',      /^\bprint\b/],
+    ['IDENTIFIER', /^[a-zA-Z_][a-zA-Z0-9_]*/],
+    ['SKIP',       /^[ \t\n]+/],
+  ];
+
+  const tokens = [];
+  let pos = 0;
+
+  while (pos < code.length) {
+    let matched = false;
+    for (const [type, re] of patterns) {
+      const m = code.slice(pos).match(re);
+      if (m) {
+        if (type !== 'SKIP') {
+          let val = m[0];
+          if (type === 'NUMBER')
+            val = val.includes('.') ? parseFloat(val) : parseInt(val, 10);
+          const tokType = ['EQ_OP','NEQ','LEQ','GEQ'].includes(type)
+                          ? 'OPERATOR' : type;
+          tokens.push({ type: tokType, value: val });
+        }
+        pos += m[0].length;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched)
+      throw new SyntaxError(`Unexpected character: '${code[pos]}'`);
+  }
+  return tokens;
+}
+
+// ── PARSER ─────────────────────────────────────────────────────────────
+function parse(tokens) {
+  let pos = 0;
+
+  function peek() { return tokens[pos] || null; }
+  function consume(type) {
+    const tok = peek();
+    if (!tok) throw new SyntaxError("Unexpected end of input");
+    if (type && tok.type !== type)
+      throw new SyntaxError(
+        `Expected ${type}, got ${tok.type} (${tok.value})`
+      );
+    pos++;
+    return tok;
+  }
+
+  function prec(op) {
+    return {
+      '==':0,'!=':0,'<':0,'>':0,'<=':0,'>=':0,
+      '+':1,'-':1,'*':2,'/':2
+    }[op] ?? -1;
+  }
+
+  function parsePrimary() {
+    const tok = peek();
+    if (!tok) throw new SyntaxError("Expected expression");
+
+    if (tok.type === 'NUMBER') {
+      consume(); return ['NUMBER', tok.value];
+    }
+    if (tok.type === 'OPERATOR' && tok.value === '-') {
+      consume();
+      return ['negate', parsePrimary()];
+    }
+    if (tok.type === 'LPAREN') {
+      consume('LPAREN');
+      const expr = parseExpr();
+      consume('RPAREN');
+      return expr;
+    }
+    if (tok.type === 'IDENTIFIER') {
+      consume(); return ['IDENTIFIER', tok.value];
+    }
+    throw new SyntaxError(`Unexpected token: ${tok.type} (${tok.value})`);
+  }
+
+  function parseExpr(minPrec = 0) {
+    let lhs = parsePrimary();
+    while (true) {
+      const tok = peek();
+      if (!tok || tok.type !== 'OPERATOR') break;
+      const p = prec(tok.value);
+      if (p < minPrec) break;
+      consume();
+      const rhs = parseExpr(p + 1);
+      lhs = [tok.value, lhs, rhs];
+    }
+    return lhs;
+  }
+
+  function parseStatement() {
+    const tok = peek();
+    if (!tok) return null;
+
+    if (tok.type === 'PRINT') {
+      consume('PRINT');
+      return ['print', parseExpr()];
+    }
+    if (tok.type === 'IF') {
+      consume('IF');
+      const cond = parseExpr();
+      consume('COLON');
+      const trueBranch = parseExpr();
+      const next = peek();
+      let falseBranch = ['NUMBER', 0];
+      if (next && next.type === 'ELSE') {
+        consume('ELSE');
+        falseBranch = parseExpr();
+      }
+      return ['if', cond, trueBranch, falseBranch];
+    }
+    if (tok.type === 'IDENTIFIER') {
+      const next = tokens[pos + 1];
+      if (next && next.type === 'OPERATOR' && next.value === '=') {
+        consume('IDENTIFIER');
+        consume('OPERATOR');
+        return ['assign', tok.value, parseExpr()];
+      }
+    }
+    return parseExpr();
+  }
+
+  const stmts = [];
+  while (pos < tokens.length) {
+    const s = parseStatement();
+    if (s) stmts.push(s);
+  }
+  return stmts.length === 1 ? stmts[0] : ['program', stmts];
+}
+
+// ── IR GENERATOR ───────────────────────────────────────────────────────
+const OP_MAP = {
+  '+':'ADD','-':'SUB','*':'MUL','/':'DIV',
+  '>':'GT','<':'LT','==':'EQ','!=':'NEQ','<=':'LEQ','>=':'GEQ'
+};
+
+function generateIR(node) {
+  const ir = [];
+  function gen(n) {
+    if (!n) return;
+    const t = n[0];
+    if (t === 'NUMBER')     { ir.push(`PUSH ${n[1]}`); return; }
+    if (t === 'IDENTIFIER') { ir.push(`LOAD ${n[1]}`); return; }
+    if (t === 'negate')     { gen(n[1]); ir.push('NEG'); return; }
+    if (t === 'assign')     { gen(n[2]); ir.push(`STORE ${n[1]}`); return; }
+    if (t === 'print')      { gen(n[1]); ir.push('PRINT'); return; }
+    if (t === 'program')    { n[1].forEach(gen); return; }
+    if (t === 'if') {
+      gen(n[1]);
+      const ifFalseIdx = ir.length;
+      ir.push('IF_FALSE ?');
+      gen(n[2]);
+      const jumpIdx = ir.length;
+      ir.push('JUMP ?');
+      const falseStart = ir.length;
+      ir[ifFalseIdx] = `IF_FALSE ${falseStart}`;
+      gen(n[3]);
+      ir[jumpIdx] = `JUMP ${ir.length}`;
+      return;
+    }
+    if (OP_MAP[t]) { gen(n[1]); gen(n[2]); ir.push(OP_MAP[t]); return; }
+    throw new Error(`Unknown AST node: ${t}`);
+  }
+  gen(node);
+  return ir;
+}
+
+// ── IR EXECUTOR ────────────────────────────────────────────────────────
+function executeIR(ir) {
+  const stack     = [];
+  const variables = {};
+  const output    = [];
+  let ip = 0;
+
+  function pop2() {
+    const b = stack.pop(), a = stack.pop();
+    return [a, b];
+  }
+
+  while (ip < ir.length) {
+    const instr = ir[ip];
+
+    if (instr.startsWith('PUSH')) {
+      stack.push(Number(instr.split(' ')[1]));
+    }
+    else if (instr.startsWith('LOAD')) {
+      const name = instr.split(' ')[1];
+      if (!(name in variables))
+        throw new ReferenceError(`Variable '${name}' is not defined`);
+      stack.push(variables[name]);
+    }
+    else if (instr.startsWith('STORE')) {
+      variables[instr.split(' ')[1]] = stack.pop();
+    }
+    else if (instr === 'NEG') { stack.push(-stack.pop()); }
+    else if (instr === 'ADD') { const [a,b]=pop2(); stack.push(a+b); }
+    else if (instr === 'SUB') { const [a,b]=pop2(); stack.push(a-b); }
+    else if (instr === 'MUL') { const [a,b]=pop2(); stack.push(a*b); }
+    else if (instr === 'DIV') {
+      const [a,b]=pop2();
+      if (b===0) throw new Error("Division by zero");
+      stack.push(a/b);
+    }
+    else if (instr === 'GT')  { const [a,b]=pop2(); stack.push(a>b?1:0); }
+    else if (instr === 'LT')  { const [a,b]=pop2(); stack.push(a<b?1:0); }
+    else if (instr === 'EQ')  { const [a,b]=pop2(); stack.push(a===b?1:0); }
+    else if (instr === 'NEQ') { const [a,b]=pop2(); stack.push(a!==b?1:0); }
+    else if (instr === 'LEQ') { const [a,b]=pop2(); stack.push(a<=b?1:0); }
+    else if (instr === 'GEQ') { const [a,b]=pop2(); stack.push(a>=b?1:0); }
+    else if (instr.startsWith('IF_FALSE')) {
+      const target = parseInt(instr.split(' ')[1]);
+      if (!stack.pop()) { ip = target; continue; }
+    }
+    else if (instr.startsWith('JUMP')) {
+      ip = parseInt(instr.split(' ')[1]);
+      continue;
+    }
+    else if (instr === 'PRINT') {
+      const v = stack.pop();
+      output.push(Number.isInteger(v) ? v : parseFloat(v.toFixed(6)));
+    }
+    else {
+      throw new Error(`Unknown IR instruction: ${instr}`);
+    }
+
+    ip++;
+  }
+
+  const raw = stack.length ? stack[stack.length - 1] : null;
+  const result = (typeof raw === 'number' && Number.isInteger(raw))
+                 ? raw
+                 : (raw !== null ? parseFloat(raw.toFixed(6)) : null);
+
+  return { result, output, variables };
+}
+
+// ── AST Formatter ──────────────────────────────────────────────────────
+function formatAST(node, indent = 0) {
+  if (node === null || node === undefined) return 'null';
+  if (!Array.isArray(node)) return String(node);
+  const t   = node[0];
+  const pad = '  '.repeat(indent);
+
+  if (t === 'NUMBER')
+    return `<span class="ast-num">Number(${node[1]})</span>`;
+  if (t === 'IDENTIFIER')
+    return `<span class="ast-node">Var(${node[1]})</span>`;
+  if (t === 'negate')
+    return `<span class="ast-op">Neg</span>(${formatAST(node[1], indent+1)})`;
+  if (t === 'assign')
+    return `<span class="ast-node">Assign</span>(${node[1]} = `
+         + `${formatAST(node[2], indent+1)})`;
+  if (t === 'print')
+    return `<span class="ast-node">Print</span>(`
+         + `${formatAST(node[1], indent+1)})`;
+  if (t === 'program') {
+    const stmts = node[1].map(
+      s => `${pad}  ${formatAST(s, indent+1)}`
+    ).join('\n');
+    return `<span class="ast-node">Program</span>(\n${stmts}\n${pad})`;
+  }
+  if (t === 'if') {
+    return `<span class="ast-node">If</span>(\n`
+      + `${pad}  cond  = ${formatAST(node[1], indent+1)}\n`
+      + `${pad}  then  = ${formatAST(node[2], indent+1)}\n`
+      + `${pad}  else  = ${formatAST(node[3], indent+1)}\n`
+      + `${pad})`;
+  }
+  return `<span class="ast-op">Op(${t})</span>(\n`
+       + `${pad}  left  = ${formatAST(node[1], indent+1)}\n`
+       + `${pad}  right = ${formatAST(node[2], indent+1)}\n`
+       + `${pad})`;
+}
+
+// ── Token Renderer ─────────────────────────────────────────────────────
+function renderTokens(tokens) {
+  return tokens.map(t => {
+    let cls = 'tok-OTHER';
+    if (t.type === 'NUMBER')               cls = 'tok-NUMBER';
+    if (t.type === 'OPERATOR')             cls = 'tok-OPERATOR';
+    if (t.type === 'IF' || t.type === 'ELSE') cls = 'tok-IF';
+    return `<span class="${cls}">${t.type.padEnd(12)}</span>`
+         + `<span style="color:#45475a"> | </span>`
+         + `<span>${t.value}</span>`;
+  }).join('\n');
+}
+
+// ── IR Renderer ────────────────────────────────────────────────────────
+function renderIR(ir) {
+  return ir.map((instr, i) => {
+    let cls = 'ir-OP';
+    if (instr.startsWith('PUSH'))                          cls = 'ir-PUSH';
+    else if (instr.startsWith('LOAD') ||
+             instr.startsWith('STORE'))                    cls = 'ir-LOAD';
+    else if (instr === 'PRINT')                            cls = 'ir-PRINT';
+    else if (instr.startsWith('IF_FALSE') ||
+             instr.startsWith('JUMP'))                     cls = 'ir-CTRL';
+    return `<span class="line-num">${String(i).padStart(2,'0')}:</span>`
+         + `  <span class="${cls}">${instr}</span>`;
+  }).join('\n');
+}
+
+// ── Main: Run Interpreter ──────────────────────────────────────────────
+function runInterpreter() {
+  const code = document.getElementById('code-input').value.trim();
+
+  ['tokens','ast','ir','result'].forEach(t => {
+    document.getElementById(`output-${t}`).innerHTML = '';
+  });
+
+  if (!code) {
+    document.getElementById('output-tokens').innerHTML =
+      '<span class="error-text">Please enter some code.</span>';
+    showTab('tokens');
+    return;
+  }
+
+  try {
+    // Stage 1: Tokenize
+    const tokens = tokenize(code);
+    document.getElementById('output-tokens').innerHTML = renderTokens(tokens);
+
+    // Stage 2: Parse
+    const ast = parse(tokens);
+    document.getElementById('output-ast').innerHTML = formatAST(ast);
+
+    // Stage 3: IR
+    const ir = generateIR(ast);
+    document.getElementById('output-ir').innerHTML = renderIR(ir);
+
+    // Stage 4: Execute
+    const res = executeIR(ir);
+    let html  = '';
+
+    if (res.output.length) {
+      html += `<span class="result-label">Printed:\n</span>`;
+      res.output.forEach(v => {
+        html += `  <span class="result-value">${v}</span>\n`;
+      });
+      html += '\n';
+    }
+    if (res.result !== null) {
+      html += `<span class="result-label">Final Result:\n</span>`;
+      html += `  <span class="result-value">${res.result}</span>\n\n`;
+    }
+    if (Object.keys(res.variables).length) {
+      html += `<span class="result-label">Variables:\n</span>`;
+      for (const [k, v] of Object.entries(res.variables)) {
+        html += `  <span class="result-value">${k} = ${v}</span>\n`;
+      }
+    }
+    if (!html)
+      html = '<span style="color:#6c7086">No output.</span>';
+
+    document.getElementById('output-result').innerHTML = html;
+    showTab('result');
+
+  } catch(err) {
+    const msg = `<span class="error-text">Error: ${err.message}</span>`;
+    ['tokens','ast','ir','result'].forEach(t => {
+      document.getElementById(`output-${t}`).innerHTML = msg;
+    });
+    showTab('tokens');
+  }
+}
+
+function clearAll() {
+  document.getElementById('code-input').value = '';
+  ['tokens','ast','ir','result'].forEach(t => {
+    document.getElementById(`output-${t}`).innerHTML = '';
+  });
+  showTab('tokens');
+}
+</script>
+</body>
+</html>
